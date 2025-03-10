@@ -18,6 +18,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 3.  **Apply proximity analysis techniques** such as creating buffers and identifying nearby features.
 
+4.  **Join and aggregate** data based on spatial relationships
+
 ------------------------------------------------------------------------
 
 Throughout this workshop series, we will use the following icons:
@@ -66,7 +68,7 @@ counties <- st_read("../data/california_counties/california_counties.shp")
 plot(counties$geometry)
 ```
 
-Next, we can select data pertaining only to Alameda County and save it to a new spatial dataframe.
+Next, we need to select only data pertaining to Alameda County and save it to a new spatial dataframe. We can do this by performing an "**attribute query**", which involves selecting or filtering data based on [non-spatial attributes or properties]{.underline} of a dataset.
 
 ```{r}
 alameda <- counties[counties$NAME == 'Alameda',]
@@ -74,9 +76,7 @@ alameda <- counties[counties$NAME == 'Alameda',]
 plot(alameda$geometry)
 ```
 
-The operation we just performed is known as an "**attribute query**", which involves selecting or filtering data based on non-spatial attributes or properties within a dataset.
-
-A spatial measurement query is similar, but more expansive in that it allow users to subset data and create new relationships based on spatial metrics and calculations (e.g. distances, areas). Let's use the `st_area()` function to calculate the area of Alameda County:
+A **spatial measurement query** is similar to an attribute query, but instead allows users to subset data and create new relationships based on spatial metrics and calculations (e.g. distances, areas). Let's use the `st_area()` function to calculate the area of Alameda County:
 
 ```{r}
 st_area(alameda)
@@ -92,11 +92,18 @@ units::set_units(st_area(alameda), km^2)
 
 ⚠️ **Warning**: manual unit conversions (e.g. dividing the m^2^ by 10^6^ to get km^2^) using the `sf` package don't translate well - converted values may still be reported as m2. Always use the `set_units()` function for unit conversion!
 
+```{r}
+## Produces the same value, but the units are wrong!
+st_area(alameda)/1000000
+```
+
+------------------------------------------------------------------------
+
 ### 🥊 Challenge 1: Calculate square miles
 
 Now you try it!
 
-Calculate the area of Alameda County in sq miles.
+Calculate the area of Alameda County in **square miles**.
 
 -   What should you change `km^2` to?
 -   Hint: you can take a look at the webpage [Measurement units in R](https://cran.r-project.org/web/packages/units/vignettes/measurement_units_in_R.html) to get a sense of more units
@@ -107,11 +114,9 @@ Calculate the area of Alameda County in sq miles.
 
 ```
 
-It's a good idea to check one or two measurements before you automate your workflow to make sure you are getting valid values. According to [Wikipedia](https://en.wikipedia.org/wiki/Alameda_County,_California), the area of Alameda county is 821 mi^2^ (2130 km^2^).
-
 ------------------------------------------------------------------------
 
-We can also use `st_area()` to add the area of all counties to the spatial dataframe:
+We can also use `st_area()` to add the area of **all** counties to the spatial dataframe:
 
 ```{r}
 
@@ -121,8 +126,6 @@ counties$area_km2 <- units::set_units(st_area(counties), km^2)
 # take a look at the added column
 head(counties)
 ```
-
-🔔 **Question**: Are the values returned by `st_area()` valid? Why might they differ?
 
 Spatial measurements are greatly dependent on the coordinate reference system (CRS). They can differ greatly depending on the CRS. Let's take a look at the areas in different CRS's using a script with multiple functions.
 
@@ -161,9 +164,7 @@ Let's determine how many miles of metro lines there are using Bay Area Rapid Tra
 
 ```{r}
 # Read in the BART lines data into a new variable
-bart_lines <- st_read("../data/transportation/bart_lines_2019.geojson")  #note the different file type
-
-#data source: https://geodata.lib.berkeley.edu/catalog/stanford-mh686mh0418
+bart_lines <- st_read("../data/bart_lines_2019.geojson")  #note the different file type
 
 # Create a quick plot of the bart_lines geometry
 plot(bart_lines$geometry)
@@ -177,27 +178,17 @@ plot(bart_lines$geometry)
 
 Similar to the `st_area()` function, the `st_length()` allows you to determine the length of a line geometry.
 
--   Create new columns called `length_mi`, and `length_km` that contain the length of the bartlines geometry in miles and kilometers respectively
-
--   Create new columns called `length_nad83`, `length_utm`, and `length_web` that contain the length of the bart_lines geometry in the (default) NAD83, UTM, and Web Mercator CRS
+-   Create new columns called `length_utm`, and `length_web` that contain the length of the bart_lines geometry in the (default) NAD83, UTM, and Web Mercator CRS's we used above. How different are the results?
 
 [Examine lengths using different units]{.underline}
 
 ```{r}
 # YOUR CODE HERE
-bart_lines$length_mi <- ______
-bart_lines$length_km <- ______
-```
-
-[Examine lengths using different CRS]{.underline}
-
-```{r}
-# YOUR CODE HERE
 bart_lines$length_nad83 <- ______
 bart_lines$length_utm <- ______
-bart_lines$length_mi <- ______
+bart_lines$length_web <- ______
 
-head(bart_lines["length_nad83", "length_utm", "length_mi"])
+head(bart_lines[c("length_nad83", "length_utm", "length_web")])
 ```
 
 ------------------------------------------------------------------------
@@ -206,42 +197,48 @@ head(bart_lines["length_nad83", "length_utm", "length_mi"])
 
 The `st_distance()` function can be used to find the distance between two geometries or two sets of geometries. Let's compute the distance between two schools.
 
-[load in the data]{.underline}
-
 ```{r}
 
 # Read in the school_sf shapefile
 schools_sf <- st_read("../data/california_schools/california_schools.shp")
+
+# Identify the column name containg the name of the schools
+colnames(schools_sf)
 ```
+
+We can use the function `st_distance()` to compute the distance between two points. Let's try this out by measuring the distance between two high schools in our dataset: Alameda High School, and Berkeley High School.
 
 ```{r}
+# Create new objects for each high school
+alameda_high <- schools_sf[schools_sf$SchoolName=='Alameda High',]
+berkeley_high <- schools_sf[schools_sf$SchoolName=='Berkeley High',]
 
-#read more about the distance function
-?st_distance
-
-colnames(schools_sf) #identify the column name containg the name of the schools
+# Determine the distance between Alameda and Berkeley High Schools
+st_distance(alameda_high, berkeley_high)
 ```
 
-[compute the distance between two points]{.underline}
+You can also use `st_distance()` to find the distance between multiple features. Let's find out the distance between Berkeley High School and each BART line. First, we need to make sure that both dataframes are in the **same CRS**. We'll use UTM for this purpose (EPSG Code = 26910):
 
 ```{r}
+# Update CRSs to match each other
+berkeley_high_utm <- st_transform(berkeley_high, 26910) # Assign the CRS based on EPSG code
+bart_lines_utm <- st_transform(bart_lines, st_crs(berkeley_high_utm)) # Assign schools_utm CRS
 
-#determine the distance between Alameda and Berkeley high
-st_distance(schools_sf[schools_sf$SchoolName=='Alameda High',], 
-                          schools_sf[schools_sf$SchoolName=='Berkeley High',])
+# Calculate the distance between Berkeley High and each portion of the BART line
+st_distance(berkeley_high_utm, bart_lines_utm)
 ```
 
-You can also use `st_distance()` to find the distance between multiple features. First, let's make sure that both dataframes are in the same CRS. We'll use UTM for this purpose (EPSG Code = 26910)
+This provides the distance (in meters) from the location of Berkeley High School to each of the 6 BART lines. Note the format of the output: it is structured as a matrix, because the `st_distance()` function has the capability to measure the distance between many different points simultaneously!
+
+We can see this by running `st_distance()` for the full `schools_sf` dataset. Don't forget to change the CRS first!
 
 ```{r}
-schools_utm <- st_transform(schools_sf, 26910) # Assign the CRS based on EPSG code
-bart_lines_utm <- st_transform(bart_lines, st_crs(schools_utm)) # Assign schools_utm CRS
+# Update the schools_sf CRS
+schools_utm <- st_transform(schools_sf, st_crs(bart_lines_utm))
 
-#calculate the distance between Berkeley High and each portion of the BART line
-st_distance(schools_utm[schools_utm$SchoolName=='Berkeley High',], bart_lines_utm)
+# Look at the distances for the first 10 schools
+head(st_distance(schools_utm, bart_lines_utm), 10)
 ```
-
-Note the format of the output. The `st_distance()` calculates the distance (in meters) from the location of the school to each of the 6 BART lines.
 
 ------------------------------------------------------------------------
 
@@ -274,29 +271,28 @@ This is the most general of all spatial relationships!
 
 The `st_intersects()` function is used to determine intersections, and can be used to specify explicit relationships (e.g. touches) by setting the operation or `op=()` argument to any of the options listed in the `?st_intersects` help documentation (e.g. `st_touches`, `st_crosses`).
 
-[view help documentation]{.underline}
+The format for filtering by spatial intersection is a bit different than we're used to. We choose the object we want to filter, and then put three arguments in brackets `[]` immediately after:
 
-```{r}
+-   The name of the spatial object we want our dataframe to spatially intersect with
 
-#see the various options similar to intersects. See the Usage section
-?st_intersects
-```
+-   The name of the columns we want to keep in the output (optional; leave blank to keep all columns)
+
+-   The type of spatial operation we want to perform (such as `st_intersects()`)
 
 Let's examine a spatial intersection by determining which schools intersect Alameda county:
 
 ```{r}
-
-#convert the counties dataframe into the utm10 CRS
+# Update CRSs
 counties_utm <- st_transform(counties, st_crs(schools_utm))
 alameda_utm <- counties_utm[counties_utm$NAME == "Alameda",]
-```
 
-[use `st_intersects` to determine the intersection]{.underline}
-
-```{r}
 # Select only the schools that *intersect* Alameda county
 alameda_schools_utm <- schools_utm[alameda_utm, , op = st_intersects]
+```
 
+We can double-check that our intersection worked by looking at the number of observations in our full `schools_utm` dataframe compared with the output of the intersection.
+
+```{r}
 # How many schools are in California?
 nrow(schools_utm)
 
@@ -312,9 +308,17 @@ The syntax we used was to
 
 -   and keep all of the other `schools_utm` columns (because the extraction brackets have no second argument)
 
+If we only wanted to keep the name and level of the schools, the filtering operation would look like this:
+
+```{r}
+alameda_schools_utm <- schools_utm[alameda_utm, c("SchoolName", "Level"), op = st_intersects]
+```
+
 Let's create a quick plot to visualize what our selection returned (red) compared with the full set of schools (blue):
 
 ```{r}
+## Run this entire code chunk at once
+
 # Alameda county
 plot(alameda_utm$geometry)
 # All schools
@@ -350,7 +354,7 @@ plot(schools_utm_not_la, col = "red", add = TRUE)
 
 [Here](https://github.com/rstudio/cheatsheets/blob/master/sf.pdf) is an `sf` cheatsheet that lists and briefly explains common relationship functions
 
-![](images/sf_Cheatsheet.png)
+![](../images/sf_Cheatsheet.png)
 
 Let's expand on our analyses by combining measurement and relationship queries.
 
@@ -362,7 +366,7 @@ Measurement queries return a continuous value (e.g. area) while relationship que
 
 Proximity analyses ask questions like
 
--   What schools in Berkeley are within 1/4 mile of a BART station?
+-   What schools in Berkeley are within 1/2 mile (approximately 800 meters) of a BART station?
 
 Proximity analysis helps identify nearby features---to find all features within a certain maximum distance of features in another dataset
 
@@ -376,17 +380,15 @@ A common workflow for this type of analysis is:
 
 Let's conduct a proximity analysis to think through the concept of a walkable city. One aspect of a walkable city is that services (e.g. public transportation) are accessible within a certain walk distance.
 
-Let's consider how 'walkable' Alameda county schools are by looking at their proximity to BART lines.
+Let's start considering how 'walkable' Alameda county schools are by looking at their proximity to BART lines.
 
 ```{r}
-
 # Create a buffer around the bart lines of 800 meters (~1/2 mile)
 bart_lines_utm_buffer = st_buffer(bart_lines_utm, dist = 800)
 ```
 
 ```{r}
-
-#plotting the BART lines 800m buffer and all schools within Alameda
+# Plot Alameda county, BART lines, and BART stations 
 bart_alameda_plot <- ggplot() +
   geom_sf(data = alameda_utm) + 
   geom_sf(data = bart_lines_utm) +
@@ -418,7 +420,7 @@ Great! Looks like we're all ready to run our spatial relationship query to compl
 ```{r}
 
 #select the schools that intersect with the bart lines buffer
-alameda_schools_utm_bart_buffer <- alameda_schools_utm[bart_lines_utm_buffer, , op = st_intersects]
+alameda_schools_utm_bart_buffer <- alameda_schools_utm[bart_stations_utm_buffer, , op = st_intersects]
 ```
 
 Now let's overlay again, to see if the schools we selected make sense.
@@ -431,96 +433,81 @@ bart_alameda_plot <- bart_alameda_plot +
 bart_alameda_plot
 ```
 
+### 🥊 Challenge 4: BART Stations and Schools
+
+This analysis is interesting, but there is a major problem! It doesn't matter if a school is within walking distance of a BART *line* - it matters whether a school is within walking distance of a BART **station**! Let's redo the analysis, this time with BART stations instead.
+
+```{r}
+# Step 1: Read in BART stations dataframe
+bart_stations <- st_read("../data/bart_stations_2019.geojson")
+
+# Step 2: Convert CRS
+bart_stations_utm <- ______
+
+# Step 3: Create buffer
+bart_stations_utm_buffer <- ______
+
+# Step 4: Intersect schools with buffer
+alameda_schools_utm_bart_stations_buffer <- ______
+
+# Step 5: Plot the results
+ggplot() +
+  geom_sf(data = alameda_utm) + 
+  geom_sf(data = bart_lines_utm) +
+  geom_sf(data = bart_stations_utm) +
+  geom_sf(data = bart_lines_utm_buffer, fill = "pink", alpha = 0.5) +
+  geom_sf(data = alameda_schools_utm, color = "purple", size = 0.2) +
+  geom_sf(data = alameda_schools_utm_bart_stations_buffer, color = "yellow", size = 0.2) +
+  theme_minimal()
+```
+
+You have just successfully conducted your own spatial analysis!
+
 ------------------------------------------------------------------------
 
-### Proximity Analysis: Nearest Feature
+## 2.3 Proximity Analysis: Nearest Feature
 
-We can can use `st_distance()` and its companion function `st_nearest_feature()` to compute the distance between each feature of A and the nearest feature in B (e.g. a middle school and the nearest high school).
+We can can also use `st_distance()` and its companion function `st_nearest_feature()` to compute the distance between each feature of A and the nearest feature in B (e.g. a high school and its nearest BART station).
 
 ```{r}
+# Create a new dataframe that contains only the high schools in the district
+alameda_high_schools_utm <- alameda_schools_utm[alameda_schools_utm$Level == "High",]
 
-#create a new dataframe that contains only the elementary schools in the district
-alameda_elementary_schools_utm <- alameda_schools_utm[alameda_schools_utm$SchoolLevel == "Elementary",]
+# For each High School, extract the ID of the nearest BART station
+nearest_bart_station <- st_nearest_feature(alameda_high_schools_utm, bart_stations_utm)
 
-#create a new dataframe that contains only the middle schools in the district
-alameda_middle_schools_utm <- alameda_schools_utm[alameda_schools_utm$SchoolLevel == "Middle",]
+# Let'sake a look!
+nearest_bart_station
 ```
 
-[identify the nearest feature]{.underline}
+This just gives us a long list of numbers! What do they mean? The `st_nearest_feature()` returns the index (or row number) of the closest feature in the BART stations object for each high school. For example, the high school in row 2 of the `alameda_high_schools_utm` dataframe is closest to the station in row 7 of the `bart_stations_utm` dataframe:
 
 ```{r}
-
-# for each elementary school, extract the ID of the nearest middle school
-nearest_elementary_middle_school = st_nearest_feature(alameda_elementary_schools_utm, alameda_middle_schools_utm)
-
-# take a look!
-nearest_elementary_middle_school
-```
-
-The output: the `st_nearest_feature` function returns the index or ID of the closest feature. These are stored in `nearest_elementary_middle_school`. We can use this index output to see the specific school
-
-```{r}
-
 #View what the index output of the st_nearest_features refers to
-alameda_elementary_schools_utm[1,]
-alameda_middle_schools_utm[34,]
+alameda_high_schools_utm[2,]
+bart_stations_utm[7,]
 ```
 
-We can view the full information of the nearest middle school using the fact that the output is an index.
+Using this data structure, we can attach the name of the nearest BART station to each high school as a new column to the `alameda_high_schools_utm` object.
 
 ```{r}
+alameda_high_schools_utm$nearest_bart <- bart_stations$station_na[nearest_bart_station]
 
-#extract the nearest middle school using indices 
-
-#create a new column in the Berkeley_Elementary_schools_utm10 dataframe called Closest_Middle_School 
-
-View(alameda_middle_schools_utm[nearest_elementary_middle_school, "SchoolName"])
+head(alameda_high_schools_utm[c("SchoolName", "nearest_bart")])
 ```
 
-Then we can use `st_distance()` to calculate the distance between each elementary school, and its nearest middle school. To do this, we will create a new column that stores the distance calculation:
-
-[Determine the distance between the elementary school and the nearest middle school]{.underline}
+Finally, we can use `st_distance()` to calculate the distance between each High School and its nearest BART station! To do this, we will create a new column that stores the distance calculation.
 
 ```{r}
-alameda_elementary_schools_utm$closest_middle_school <- alameda_middle_schools_utm$SchoolName[nearest_elementary_middle_school]
+# Calculate distance between each high school and its nearest BART station
+alameda_high_schools_utm$nearest_bart_distance <- 
+  st_distance(alameda_high_schools_utm, bart_stations_utm[nearest_bart_station,], by_element = TRUE)
 
-alameda_elementary_schools_utm$elementary_middle_dist <- 
-  st_distance(alameda_elementary_schools_utm,
-              alameda_middle_schools_utm[nearest_elementary_middle_school,], 
-              by_element = TRUE)
-
-# Extract just the school names and the distance between them
-alameda_elementary_schools_utm[, c("SchoolName", "closest_middle_school", "elementary_middle_dist")]
-
-# Sort by distance
-alameda_elementary_schools_utm[order(alameda_elementary_schools_utm$elementary_middle_dist), 
-                               c("SchoolName", "closest_middle_school", "elementary_middle_dist")]
+# Extract just the names of the school, nearest BART station, and the distance between them
+alameda_high_schools_utm[, c("SchoolName", "nearest_bart", "nearest_bart_distance")]
 ```
 
-Note that although we only selected the two columns, the geometry columns came along.
-
-### 🥊 Challenge 4: BART Station Proximity
-
-Let's see if we can create a dataset that contains only schools that are closest to the Downtown Berkeley BART station
-
-```{r}
-bart_stations <- st_read("../data/transportation/bart_stations_2019.geojson")
-head(bart_stations)
-
-# Step 1: 
-bart_stations_utm <- st_transform(______)
-
-st_crs(bart_stations_utm) == st_crs(alameda_schools_utm)
-
-# Step 1: Determine the nearest station to each school in Alameda County
-nearest_station <- st_nearest_feature(______, ______)
-
-# Step 2: Find names of closest station to each school
-alameda_schools_utm$closest_station <- ______$______[______]
-
-# Step 3: Filter to only include schools near Downtown Berkeley
-downtown_berkeley_schools <- ______[______$______ == "Downtown Berkeley",]
-```
+💡 **Tip**: The `by_element = TRUE` argument tells the `st_distance()` function to only compute the distances one row at a time (measuring the distance between the observations in row 1 of each input, between the observations in row 2 of each input, etc.)
 
 # Part 3: Spatial Joins And Aggregations
 
@@ -530,97 +517,78 @@ Now that we understand the logic of spatial queries, let's take a look at anothe
 
 This operation, called a **spatial join**, is the process by which we can leverage the spatial relationships between distinct datasets to merge their information into a new output dataset.
 
-This operation can be thought as the spatial equivalent of an **attribute join**, in which multiple tabular datasets can be merged by aligning matching values in a common column that they both contain. Thus, we'll start by developing an understanding of this operation first!
+This operation can be thought as the spatial equivalent of an **attribute join**, in which multiple tabular datasets can be merged by aligning matching values in a common column that they both contain. We can do this using the `merge()` function.
 
-For this, we'll pull in two new datasets: a shapefile of California census tracts, and a CSV table of median household income for census tracts in Alameda County.
+This requires that both datasets share a common field. In this case, the `NAME` field from our `counties` dataframe corresponds with the `CountyName` field from our `schools_utm` dataframe.
 
 ```{r}
-# Load California census tract shapefile
-ca_tracts <- st_read("california_tracts.shp")
-class(ca_tracts)
-head(ca_tracts)
-
-# Load Alameda County household income table
-alameda_income <- read.csv("alameda_tract_income.csv")
-class(alameda_income)
-head(alameda_income)
+attribute_join <- merge(schools_utm, counties_utm, 
+                        by.x = "CountyName", by.y = "NAME")
 ```
 
-Let's try out two different types of attribute joins:
-
--   **left_join(x, y):** Retain everything from x and only matching records from y
-
--   **inner_join(x, y):** Retain only records available in both x and y
-
-We can join together our datasets using each of these join methods. This requires that both datasets share a common field - luckily, they both contain the field `GEOID`!
+We can't do an attribute join with these two objects because they are both spatial dataframes! To do an attribute join with two spatial dataframes, we need to drop the geometry column from one or both of the tables using the function `st_drop_geometry()`:
 
 ```{r}
-# Left Join
-alameda_tracts_left <- left_join(ca_tracts, alameda_income, by = "GEOID")
-nrow(alameda_tracts_left)
-
-# Inner Join
-alameda_tracts_inner <- inner_join(ca_tracts, alameda_income, by = "GEOID")
-nrow(alameda_tracts_inner)
+schools_attribute_join <- merge(schools_utm, st_drop_geometry(counties_utm), 
+                                by.x = "CountyName", by.y = "NAME")
 ```
 
-Using the left join keeps all census tracts in California, even though we only have income data for Alameda County. Using the inner join keeps only census tracts that have a matching record in the Alameda County income dataset.
-
-Let's convert our joined Alameda census tracts dataframe into the same CRS as our other dataframes.
+The resulting output contains the columns from both of these dataframes!
 
 ```{r}
-alameda_tracts_utm <- st_transform(alameda_tracts_inner, st_crs(alameda_schools_utm))
+colnames(schools_attribute_join)
 ```
 
-Next, let's plot our Alameda census tracts along with our dataframe of Alameda schools:
+An attribute join works if we a common column to link the two. What if that column doesn't exist? Alternatively, we can use a **spatial join** to link these two dataframes together with `st_join()`.
 
 ```{r}
-ggplot() +
-  geom_sf(data = alameda_tracts_utm, aes(fill = med_hhinc)) + 
-  geom_sf(data = alameda_schools_utm) +
-  theme_minimal()
-```
+schools_spatial_join <- st_join(schools_utm, counties_utm)
 
-We can see that some schools are located in high-income neighborhoods and others are located in low-income neighborhoods. But what if we want to figure out the neighborhood income associated with a particular school? This is where **spatial joins** come in.
-
-While an attribute join allows us to join two dataframes by using a common attribute, a spatial join allows us to join two dataframes that intersect in **space**. We can perform a spatial join using the function `st_join()`:
-
-```{r}
-alameda_schools_utm <- st_join(alameda_schools_utm, alameda_tracts_utm, join = st_intersects)
+colnames(schools_spatial_join)
 ```
 
 💡 **Tip**: By default, the `st_join()` function joins by intersection. However, there are many other types of spatial joins, including joining to nearest features. See the documentation at `?st_join` for more information.
 
-Now let's map the Alameda schools, but this time change the color based on the median household income of their neighborhood.
+A cool feature of spatial joins is that it lets us transfer the information from one dataframe to another. For example, we have information about the median household income of each county:
 
 ```{r}
 ggplot() +
-  geom_sf(data = alameda_tracts_utm) + 
-  geom_sf(data = alameda_schools_utm, aes(color = med_hhinc)) +
+  geom_sf(data = counties_utm, aes(fill = MED_AGE)) +
   theme_minimal()
 ```
 
-If we compare this map with the previous map of neighborhood incomes, we can see that the information has been transferred from the census tracts to the individual schools.
-
-This type of spatial join can be quite useful if we want to examine the relationship between individual school characteristics and neighborhood characteristics. For example, the State of California evaluates school performance on subjects like Math on a score from 1-5. Are schools in higher-income neighborhoods more likely to get higher Math scores?
+With the spatial join, we can transfer that information about county median household income to the individual schools!
 
 ```{r}
-ggplot(alameda_schools_utm) + 
-  geom_boxplot(aes(x = factor(MathScore), y = med_hhinc)) +
+ggplot() +
+  geom_sf(data = counties_utm) + 
+  geom_sf(data = schools_spatial_join, aes(color = MED_AGE)) +
   theme_minimal()
 ```
 
-This graph suggests that schools with a Math score of 5 tend to be located in neighborhoods with substantially higher median incomes. There are many more analyses of this sort that can be accomplished with spatial joins!
+If we compare this map with the previous map of county incomes, we can see that the information has been transferred from the census tracts to the individual schools.
+
+This type of spatial join can be quite useful if we want to examine the relationship between individual school characteristics and county characteristics. For example, the State of California evaluates school performance on subjects like Math on a score from 0-5.
+
+Are schools in higher-income counties more likely to get higher Math scores? We can find this out by generating a box plot, which shows us the distribution of county income for schools with each math score.
+
+```{r}
+ggplot(schools_spatial_join) + 
+  geom_boxplot(aes(x = as.factor(MathScore), y = MED_AGE)) +
+  theme_minimal()
+```
+
+This graph suggests that schools with a Math score of 5 tend to be located in counties with substantially higher median incomes. There are many more analyses of this sort that can be accomplished with spatial joins!
 
 ## 3.2 Aggregation
 
 We just walked through how to attach neighborhood information to specific schools via spatial joins. But what if we wanted to go the other way? What if we wanted to figure out the average school math score in each census tract?
 
-For this, we can use the function `aggregate.sf`. This function summarizes a variable of our choice (such as `Enrollment`) within a particular geography. In this case, we can calculate the total enrollment by census tract:
+For this, we can use the function `aggregate.sf`. This function summarizes a variable of our choice (such as `Enrollment`) within a particular geography. In this case, we can calculate the total school enrollment by county:
 
 ```{r}
-alameda_tracts_math <- sf:::aggregate.sf(x = alameda_schools_utm['Enrollment'], 
-                                         by = alameda_tracts_utm, 
+counties_enrollment <- sf:::aggregate.sf(x = schools_utm['Enrollment'], 
+                                         by = counties_utm, 
                                          FUN = sum)
 ```
 
@@ -628,7 +596,19 @@ We can then map the total enrollment by census tract! Neighborhoods that have mu
 
 ```{r}
 ggplot() +
-  geom_sf(data = alameda_tracts_math, aes(fill = Enrollment)) +
+  geom_sf(data = counties_enrollment, aes(fill = Enrollment)) +
+  theme_minimal()
+```
+
+We could also use the `aggregate.sf` function to look at the average Math Scores by county:
+
+```{r}
+counties_math_scores <- sf:::aggregate.sf(x = schools_utm['MathScore'], 
+                                          by = counties_utm, 
+                                          FUN = mean)
+
+ggplot() +
+  geom_sf(data = counties_math_scores, aes(fill = MathScore)) +
   theme_minimal()
 ```
 

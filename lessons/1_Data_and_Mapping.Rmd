@@ -70,8 +70,7 @@ library(sf)
 Let's read in our first spatial file, which is contained in the "data" folder under `california_schools/california_schools.shp`. For this, we will use the `st_read()` function from the `sf` package:
 
 ```{r}
-schools_sf <- st_read("../data/california_schools.shp")
-#data source: https://gis.data.ca.gov/datasets/f7f818b0aa7a415192eaf66f192bc9cc
+schools_sf <- st_read("../data/california_schools/california_schools.shp")
 ```
 
 The output we can see when we read in a spatial file is known as "metadata". We will discuss most of what is contained in the metadata bit by bit throughout this workshop.
@@ -138,14 +137,14 @@ This summary includes:
 
 For this challenge, let's read in a new shapefile and store it as the object `counties`.
 
-1.  Read in the file `../data/california_counties.shp` (hint: follow the same filepath format as for the schools_sf object)
+1.  Read in the file `../data/california_counties/california_counties.shp`
 2.  Look at the data: what information does this dataframe contain?
 3.  Identify the geometry type.
 
 ```{r}
 
 # Step 1: Read in california_counties.shp and store as `counties`
-counties <- ______
+counties <- st_read("../data/california_counties/california_counties.shp")
 
 # Step 2: Look at the first few rows of the data
 
@@ -366,7 +365,7 @@ We can also overlay these two geometries in the same plot by using the `add = TR
 ```{r}
 # Run these two lines together
 plot(counties$geometry)
-plot(schools_sf$geometry, add=TRUE)
+plot(schools_sf$geometry, add = TRUE)
 ```
 
 This didn't work! What happened?
@@ -553,7 +552,6 @@ Selecting the appropriate color palette can help mitigate these challenges. Some
 Count data are individual-level data (e.g. population), aggregated by feature (e.g. county). These plots emphasize the areas with the largest absolute counts.
 
 ```{r}
-
 count_plot <- ggplot(data = counties) +                     # Initialize ggplot
   geom_sf(aes(fill = MULTI_RACE)) +                         # Fill color based on MULTI_RACE
   scale_fill_gradientn(colors = brewer.pal(9, "Greens")) +  # Set color gradient
@@ -569,7 +567,7 @@ count_plot
 
 Density data is counts aggregated by feature (county) and [normalized]{.underline} (divided) by the geographia area of the feature.
 
-For example, we could look at the population per square mile within a county:
+For example, we could look at the multi-racial population *per square mile* within a county:
 
 ```{r}
 
@@ -609,7 +607,7 @@ percent_plot
 
 ### 🥊 Challenge 2: **Visualizing Race by County**
 
-Now it's your turn! Using the method shown above, plot the distribution of another race group of your choice from the `counties` dataset using all three methods: 1) count, 2) density, and 3) percent.
+Now it's your turn! Using the method shown above, plot the distribution of a **different** race group from the `counties` dataset using all three methods: 1) count, 2) density, and 3) percent.
 
 ```{r}
 
